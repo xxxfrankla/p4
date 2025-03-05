@@ -15,6 +15,10 @@ The work of this assignment is to:
 * Modify the memory management subsystem in xv6 to transparently use 4 MB huge pages
 * Add a system call, setthp to configure transparent huge page management
 
+Some useful links:
+[Chapter 2 of the xv6 manual (Page Tables)](https://pdos.csail.mit.edu/6.828/2018/xv6/book-rev11.pdf#Anchor%24toc%242d2)
+[xv6 Memory Management Walkthrough](https://github.com/zarif98sjs/xv6-memory-management-walkthrough)
+
 ## Project Overview
 
 ### Step 1: Enable huge page allocations

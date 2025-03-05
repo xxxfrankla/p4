@@ -170,5 +170,5 @@ $ cat slipdays.txt
 - Download generated tar file
 - Upload it to Canvas
   * Links to Canvas assignment (update):
-  * [Prof. Mike Swift's class](https://canvas.wisc.edu/courses/434150/assignments/26)
-  * [Prof. Ali Abedi's class](https://canvas.wisc.edu/courses/434155/assignments/26)
+  * [Prof. Mike Swift's class](https://canvas.wisc.edu/courses/434150/assignments/2641726)
+  * [Prof. Ali Abedi's class](https://canvas.wisc.edu/courses/434155/assignments/2641727)

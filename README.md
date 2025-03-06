@@ -21,7 +21,7 @@ Some useful links:
 
 [xv6 Memory Management Walkthrough](https://github.com/zarif98sjs/xv6-memory-management-walkthrough)
 
-Update (March 6, 2025): Please use the solution directory that has been provided. Don't work use a clean xv6 directory cloned from github.
+**Update (March 6, 2025): Please use the solution directory that has been provided. Don't work use a clean xv6 directory cloned from github.**
 
 ## Project Overview
 

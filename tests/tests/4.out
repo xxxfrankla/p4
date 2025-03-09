@@ -1,0 +1,2 @@
+XV6_TEST_OUTPUT Start of program - base pages:3 huge pages:0
+XV6_TEST_OUTPUT After vmalloc huge, 200 bytes - program base pages:3 huge pages:1

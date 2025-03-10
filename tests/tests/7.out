@@ -2,5 +2,5 @@ XV6_TEST_OUTPUT Start of program - base pages:3 huge pages:0
 XV6_TEST_OUTPUT After first vmalloc huge, 4 MB - program base pages:3 huge pages:2
 XV6_TEST_OUTPUT After second vmalloc, 100 bytes - program base pages:11 huge pages:2
 XV6_TEST_OUTPUT After third vmalloc, 5000 bytes - program base pages:11 huge pages:2
-PID 3: PDE[120] is 0x3d8000e7
-PID 3: PDE[121] is 0x3d4000e7
+PDE 120 found
+PDE 121 found

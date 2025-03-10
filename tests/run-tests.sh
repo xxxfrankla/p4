@@ -62,7 +62,7 @@ check_test () {
     local filetype=$4
 
     # option to use cmp instead?
-    returnval=$(diff $testdir/$testnum.$filetype tests-out/$testnum.$filetype)
+    returnval=$(diff --strip-trailing-cr $testdir/$testnum.$filetype tests-out/$testnum.$filetype)
     if (( $? == 0 )); then
 	echo 0
     else

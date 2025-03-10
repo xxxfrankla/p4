@@ -15,7 +15,7 @@ int main() {
   if(procpgdirinfo(page_cnt) == -1) {
     printf(1,"XV6_TEST_ERROR Error, procpgdirinfo returned -1\n");
   }
-  printf(1, "XV6_TEST_OUTPUT After malloc with THP disabled, 1 MB - program base pages:%d huge pages:%d\n", page_cnt[0], page_cnt[1]);
+  printf(1, "XV6_TEST_OUTPUT After malloc with THP disabled, 1 MB - program base pages:%d huge pages:%d\n", page_cnt[0] - original_page_cnt[0], page_cnt[1] - original_page_cnt[1]);
   printf(1, "XV6_TEST_OUTPUT Now enabling THP\n");
   if(setthp(1) == -1) {
     printf(1,"XV6_TEST_ERROR Error, setthp returned -1\n");
@@ -26,7 +26,7 @@ int main() {
   if(procpgdirinfo(page_cnt) == -1) {
     printf(1,"XV6_TEST_ERROR Error, procpgdirinfo returned -1\n");
   }
-  printf(1, "XV6_TEST_OUTPUT After malloc with THP, 2MB - program base pages:%d huge pages:%d\n", page_cnt[0], page_cnt[1]);
+  printf(1, "XV6_TEST_OUTPUT After malloc with THP, 2MB - program base pages:%d huge pages:%d\n", page_cnt[0] - original_page_cnt[0], page_cnt[1] - original_page_cnt[1]);
   printf(1, "Now testing THP\n");
   if(setthp(0) == -1) {
     printf(1,"XV6_TEST_ERROR Error, setthp returned -1\n");
@@ -43,13 +43,13 @@ int main() {
       if(procpgdirinfo(page_cnt) == -1) {
           printf(1,"XV6_TEST_ERROR Error, procpgdirinfo returned -1\n");
       }
-      printf(1, "XV6_TEST_OUTPUT Child program base pages:%d huge pages:%d\n", page_cnt[0], page_cnt[1]);
+      printf(1, "XV6_TEST_OUTPUT Child program base pages:%d huge pages:%d\n", page_cnt[0] - original_page_cnt[0], page_cnt[1] - original_page_cnt[1]);
   } else {
       wait();
       printf(1, "XV6_TEST_OUTPUT Parent stats:\n");
       if(procpgdirinfo(page_cnt) == -1) {
           printf(1,"XV6_TEST_ERROR Error, procpgdirinfo returned -1\n");
       }
-      printf(1, "XV6_TEST_OUTPUT Parent program base pages:%d huge pages:%d\n", page_cnt[0], page_cnt[1]);
+      printf(1, "XV6_TEST_OUTPUT Parent program base pages:%d huge pages:%d\n", page_cnt[0] - original_page_cnt[0], page_cnt[1] - original_page_cnt[1]);
   }
 }

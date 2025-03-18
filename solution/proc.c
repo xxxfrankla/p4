@@ -88,6 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->thp_enabled = 0; // THP is disabled by default
 
   release(&ptable.lock);
 
@@ -156,20 +157,31 @@ userinit(void)
 // Grow current process's memory by n bytes.
 // Return 0 on success, -1 on failure.
 int
-growproc(int n)
+growproc(int n, int heap_type)
 {
-  uint sz;
+  
   struct proc *curproc = myproc();
-
-  sz = curproc->sz;
-  if(n > 0){
-    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
-      return -1;
-  } else if(n < 0){
-    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
-      return -1;
+  if (heap_type == 0) {
+    uint sz = curproc->sz;
+    if (n > 0) {
+      if((sz = allocuvm(curproc->pgdir, 0, sz, sz + n, PGSIZE)) == 0)
+        return -1;
+    } else if (n < 0) {
+      if((sz = deallocuvm(curproc->pgdir, 0, sz, sz + n, PGSIZE)) == 0)
+        return -1;
+    }
+    curproc->sz = sz;
+  } else {
+    uint hugesz = curproc -> hugesz;
+    if (n > 0) {
+      if ((hugesz = allocuvm(curproc->pgdir, HUGE_VA_OFFSET, hugesz, hugesz + n, HUGE_PAGE_SIZE)) == 0)
+        return -1;
+    } else if (n < 0) {
+      if ((hugesz = deallocuvm(curproc->pgdir, HUGE_VA_OFFSET, hugesz, hugesz + n, HUGE_PAGE_SIZE)) == 0)
+        return -1;
+    }
+    curproc->hugesz = hugesz;
   }
-  curproc->sz = sz;
   switchuvm(curproc);
   return 0;
 }
@@ -197,6 +209,8 @@ fork(void)
     return -1;
   }
   np->sz = curproc->sz;
+  np->hugesz = curproc->hugesz; // Copy huge page heap size
+  np->thp_enabled = curproc->thp_enabled; // Inherit THP setting
   np->parent = curproc;
   *np->tf = *curproc->tf;
 

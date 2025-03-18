@@ -23,6 +23,16 @@ struct {
   struct run *freelist;
 } kmem;
 
+#define HUGEPGSIZE 0x400000
+
+struct {
+  struct spinlock lock;
+  int use_lock;
+  struct run *freelist;
+} hugekmem;
+
+#define HUGEPGROUNDUP(addr) (((addr) + HUGEPGSIZE - 1) & ~(HUGEPGSIZE - 1))
+
 // Initialization happens in two phases.
 // 1. main() calls kinit1() while still using entrypgdir to place just
 // the pages mapped by entrypgdir on free list.
@@ -94,3 +104,50 @@ kalloc(void)
   return (char*)r;
 }
 
+void
+khugefree(char *v)
+{
+  struct run *r;
+  if ((uint)v % HUGEPGSIZE || v < P2V(HUGE_PAGE_START) || v >= P2V(HUGE_PAGE_END))
+    panic("khugefree");
+  memset(v, 1, HUGEPGSIZE);
+  if (hugekmem.use_lock)
+    acquire(&hugekmem.lock);
+  r = (struct run*)v;
+  r->next = hugekmem.freelist;
+  hugekmem.freelist = r;
+  if (hugekmem.use_lock)
+    release(&hugekmem.lock);
+}
+
+char*
+khugealloc(void)
+{
+  struct run *r;
+  if (hugekmem.use_lock)
+    acquire(&hugekmem.lock);
+  r = hugekmem.freelist;
+  if (r)
+    hugekmem.freelist = r->next;
+  if (hugekmem.use_lock)
+    release(&hugekmem.lock);
+  return (char*)r;
+}
+
+void
+hugefreerange(void *vstart, void *vend)
+{
+  char *p;
+  p = (char*)HUGEPGROUNDUP((uint)vstart);
+  for (; p + HUGEPGSIZE <= (char*)vend; p += HUGEPGSIZE)
+    khugefree(p);
+}
+
+void
+khugeinit(void)
+{
+  initlock(&hugekmem.lock, "hugekmem");
+  hugekmem.use_lock = 0;
+  hugefreerange(P2V(HUGE_PAGE_START), P2V(HUGE_PAGE_END));
+  hugekmem.use_lock = 1;
+}

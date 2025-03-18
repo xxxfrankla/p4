@@ -51,9 +51,24 @@ sys_sbrk(void)
   if(argint(0, &n) < 0)
     return -1;
   addr = myproc()->sz;
-  if(growproc(n) < 0)
+  if(growproc(n, 0) < 0)
     return -1;
   return addr;
+}
+
+int
+sys_sbrk_huge(void)
+{
+  int n;
+  if (argint(0, &n) < 0){
+    return -1;
+  }
+  struct proc *curproc = myproc();
+  uint old_hugesz = curproc->hugesz;
+  if (growproc(n, 1) < 0) {
+    return -1;
+  }
+  return HUGE_VA_OFFSET + old_hugesz;
 }
 
 int
@@ -130,4 +145,21 @@ sys_procpgdirinfo()
   buf[0] = base_cnt; // base page count
   buf[1] = huge_cnt; // huge page count
   return 0;
+}
+
+int
+sys_setthp(void)
+{
+  int n;
+  if (argint(0, &n) < 0) {
+    return -1;
+  }
+  myproc()->thp_enabled = (n!=0) ? 1 : 0;
+  return 0;
+}
+
+int
+sys_getthp(void)
+{
+  return myproc()->thp_enabled;
 }

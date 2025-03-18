@@ -50,6 +50,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int thp_enabled;             // 0: THP disabled, 1: THP enabled
 };
 
 // Process memory is laid out contiguously, low addresses first:

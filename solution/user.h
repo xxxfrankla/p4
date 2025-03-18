@@ -1,5 +1,8 @@
 struct stat;
 struct rtcdate;
+#define VMALLOC_SIZE_BASE 0
+#define VMALLOC_SIZE_HUGE 1
+#define KERNBASE 0x80000000
 
 // system calls
 int fork(void);
@@ -25,6 +28,8 @@ int sleep(int);
 int uptime(void);
 int printhugepde(void);
 int procpgdirinfo(int*);
+int setthp(int);
+int getthp(void);
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -39,3 +44,6 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+void* vmalloc(int nbytes, int type);
+void vfree(void *ptr);
+char* sbrk_huge(int);

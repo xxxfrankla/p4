@@ -58,23 +58,40 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
 // physical addresses starting at pa. va and size might not
 // be page-aligned.
 static int
-mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
+mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm, int pagesize)
 {
   char *a, *last;
   pte_t *pte;
 
-  a = (char*)PGROUNDDOWN((uint)va);
-  last = (char*)PGROUNDDOWN(((uint)va) + size - 1);
-  for(;;){
-    if((pte = walkpgdir(pgdir, a, 1)) == 0)
-      return -1;
-    if(*pte & PTE_P)
-      panic("remap");
-    *pte = pa | perm | PTE_P;
-    if(a == last)
-      break;
-    a += PGSIZE;
-    pa += PGSIZE;
+  if (pagesize == HUGE_PAGE_SIZE) {
+    a = (char*)HUGEPGROUNDDOWN((uint)va);
+    last = (char*)HUGEPGROUNDDOWN(((uint)va) + size - 1);
+    for (;;) {
+      pde_t *pde = &pgdir[PDX(a)];
+      if (*pde & PTE_P) {
+        panic("remap");
+      }
+      *pde = pa | perm | PTE_P | PTE_PS;
+      if (a == last) {
+        break;
+      }
+      a += HUGE_PAGE_SIZE;
+      pa += HUGE_PAGE_SIZE;
+    }
+  } else{
+    a = (char*)PGROUNDDOWN((uint)va);
+    last = (char*)PGROUNDDOWN(((uint)va) + size - 1);
+    for(;;){
+      if((pte = walkpgdir(pgdir, a, 1)) == 0)
+        return -1;
+      if(*pte & PTE_P)
+        panic("remap");
+      *pte = pa | perm | PTE_P;
+      if(a == last)
+        break;
+      a += PGSIZE;
+      pa += PGSIZE;
+    }
   }
   return 0;
 }
@@ -128,7 +145,7 @@ setupkvm(void)
     panic("PHYSTOP too high");
   for(k = kmap; k < &kmap[NELEM(kmap)]; k++)
     if(mappages(pgdir, k->virt, k->phys_end - k->phys_start,
-                (uint)k->phys_start, k->perm) < 0) {
+                (uint)k->phys_start, k->perm, PGSIZE) < 0) {
       freevm(pgdir);
       return 0;
     }
@@ -188,7 +205,7 @@ inituvm(pde_t *pgdir, char *init, uint sz)
     panic("inituvm: more than a page");
   mem = kalloc();
   memset(mem, 0, PGSIZE);
-  mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
+  mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U, PGSIZE);
   memmove(mem, init, sz);
 }
 
@@ -219,30 +236,48 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 // Allocate page tables and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 int
-allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+allocuvm(pde_t *pgdir, uint base_va, uint oldsz, uint newsz, int pagesize)
 {
   char *mem;
   uint a;
 
-  if(newsz >= KERNBASE)
+  if(newsz >= KERNBASE - base_va)
     return 0;
   if(newsz < oldsz)
     return oldsz;
-
-  a = PGROUNDUP(oldsz);
-  for(; a < newsz; a += PGSIZE){
-    mem = kalloc();
-    if(mem == 0){
-      cprintf("allocuvm out of memory\n");
-      deallocuvm(pgdir, newsz, oldsz);
-      return 0;
+  if (pagesize == HUGE_PAGE_SIZE) {
+    a = HUGEPGROUNDUP(oldsz);
+    for (; a < newsz; a += HUGE_PAGE_SIZE){
+      mem = khugealloc();
+      if(mem == 0){
+        cprintf("hugealloc - allocuvm out of memory\n");
+        deallocuvm(pgdir, base_va, newsz, oldsz, pagesize);
+        return 0;
+      }
+      memset(mem, 0, HUGE_PAGE_SIZE);
+      if (mappages(pgdir, (char*)a, HUGE_PAGE_SIZE, V2P(mem), PTE_W | PTE_U, HUGE_PAGE_SIZE) < 0) {
+        cprintf("hugealloc - allocuvm out of memory (2)\n");
+        deallocuvm(pgdir, base_va, newsz, oldsz, pagesize);
+        khugefree(mem);
+        return 0;
+      }
     }
-    memset(mem, 0, PGSIZE);
-    if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
-      cprintf("allocuvm out of memory (2)\n");
-      deallocuvm(pgdir, newsz, oldsz);
-      kfree(mem);
-      return 0;
+  } else {
+    a = PGROUNDUP(oldsz);
+    for(; a < newsz; a += PGSIZE){
+      mem = kalloc();
+      if(mem == 0){
+        cprintf("allocuvm out of memory\n");
+        deallocuvm(pgdir, base_va, newsz, oldsz, pagesize);
+        return 0;
+      }
+      memset(mem, 0, PGSIZE);
+      if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U, PGSIZE) < 0){
+        cprintf("allocuvm out of memory (2)\n");
+        deallocuvm(pgdir, base_va, newsz, oldsz, pagesize);
+        kfree(mem);
+        return 0;
+      }
     }
   }
   return newsz;
@@ -253,7 +288,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 // need to be less than oldsz.  oldsz can be larger than the actual
 // process size.  Returns the new process size.
 int
-deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+deallocuvm(pde_t *pgdir, uint base_va, uint oldsz, uint newsz, int pagesize)
 {
   pte_t *pte;
   uint a, pa;
@@ -261,18 +296,35 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   if(newsz >= oldsz)
     return oldsz;
 
-  a = PGROUNDUP(newsz);
-  for(; a  < oldsz; a += PGSIZE){
-    pte = walkpgdir(pgdir, (char*)a, 0);
-    if(!pte)
-      a = PGADDR(PDX(a) + 1, 0, 0) - PGSIZE;
-    else if((*pte & PTE_P) != 0){
-      pa = PTE_ADDR(*pte);
-      if(pa == 0)
-        panic("kfree");
-      char *v = P2V(pa);
-      kfree(v);
-      *pte = 0;
+  if (pagesize == HUGE_PAGE_SIZE) {
+    a = HUGEPGROUNDUP(newsz);
+    for (; a < oldsz; a += HUGE_PAGE_SIZE) {
+      uint va = base_va + a;
+      pde_t *pde = &pgdir[PDX(va)];
+      if (*pde & PTE_P) {
+        pa = PTE_ADDR(*pde);
+        if (pa == 0)
+          panic("khugefree");
+        char *v = P2V(pa);
+        khugefree(v);
+        *pde = 0;
+      }
+    }
+  } else {
+    a = PGROUNDUP(newsz);
+    for(; a  < oldsz; a += PGSIZE){
+      uint va = base_va + a;
+      pte = walkpgdir(pgdir, (char*)a, 0);
+      if(!pte)
+        a = (PGADDR(PDX(a) + 1, 0, 0) - base_va) - PGSIZE;
+      else if((*pte & PTE_P) != 0){
+        pa = PTE_ADDR(*pte);
+        if(pa == 0)
+          panic("kfree");
+        char *v = P2V(pa);
+        kfree(v);
+        *pte = 0;
+      }
     }
   }
   return newsz;
@@ -287,7 +339,7 @@ freevm(pde_t *pgdir)
 
   if(pgdir == 0)
     panic("freevm: no pgdir");
-  deallocuvm(pgdir, KERNBASE, 0);
+  deallocuvm(pgdir, KERNBASE, 0, PGSIZE);
   for(i = 0; i < NPDENTRIES; i++){
     if(pgdir[i] & PTE_P){
       char * v = P2V(PTE_ADDR(pgdir[i]));
@@ -332,7 +384,7 @@ copyuvm(pde_t *pgdir, uint sz)
     if((mem = kalloc()) == 0)
       goto bad;
     memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
+    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags, PGSIZE) < 0) {
       kfree(mem);
       goto bad;
     }
